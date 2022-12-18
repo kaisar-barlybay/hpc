@@ -1,6 +1,6 @@
 /*
- *   gcc -g -Wall -fopenmp static.c -o static mmio.c
- *   ./static <file_name>.mtx
+ *   gcc -g -Wall -fopenmp guided.c -o guided mmio.c
+ *   ./guided <file_name>.mtx
  */
 
 #include <stdio.h>
@@ -17,7 +17,7 @@ void calc(
     start = omp_get_wtime();
 #pragma omp parallel num_threads(thread_count) private(nz_id, i, j) shared(ssr, vec, product)
     {
-#pragma omp parallel for schedule(static, 16)
+#pragma omp parallel for schedule(guided, 1)
         for (i = 0; i < ssr->n_rows; i++)
         {
             for (nz_id = ssr->row_ptrs[i]; nz_id < ssr->row_ptrs[i + 1]; nz_id++)
