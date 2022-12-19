@@ -1,67 +1,72 @@
-typedef struct COO
-{
-    int n_rows;
-    int n_cols;
-    int n_nz;
-    int *row_indices;
-    int *col_indices;
-    double *values;
-} COO;
+/*
+ *   gcc -g -Wall -fopenmp coo.c -o coo mmio.c
+ *   ./coo <file_name>.mtx
+ */
 
-void print_COO(COO *coo)
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+#include "mmio.h"
+#include "helpers.c"
+
+void calc(
+    COO *coo, double *vec, double *product, int thread_count, FILE *fptr)
 {
-    int i;
-    for (i = 0; i < coo->n_nz; i++)
+    double start, finish;
+    int i, j, nz_id;
+    start = omp_get_wtime();
+#pragma omp parallel for num_threads(thread_count) schedule(static, 1) private(nz_id, i, j) shared(coo, vec, product)
+    for (nz_id = 0; nz_id < coo->n_nz; nz_id++)
     {
-        printf("[%d, %d]: %.3f\n", coo->col_indices[i], coo->row_indices[i], coo->values[i]);
+#ifdef DEBUG
+        int thread_num = omp_get_thread_num();
+        int actual_thread_count = omp_get_num_threads();
+        printf("from %d/%d: %d, %d %.3fx%.3f => += %.3f\n", thread_num, actual_thread_count, i, j, coo->values[nz_id], vec[j], coo->values[nz_id] * vec[j]);
+#endif
+        i = coo->row_indices[nz_id];
+        j = coo->col_indices[nz_id];
+        product[i] += coo->values[nz_id] * vec[j];
     }
+    finish = omp_get_wtime();
+#ifdef DEBUG
+    print_vec(product, coo->n_cols);
+#endif
+
+    printf("%.3f\t", finish - start);
+    fprintf(fptr, "%.3f\t", finish - start);
 }
 
-int read_COO(
-    const char *f_name,
-    COO *coo)
+int main(int argc, char *argv[])
 {
-    MM_typecode matcode;
-    FILE *f;
-    int ret_code;
-    int i;
 
-    if ((f = fopen(f_name, "r")) == NULL)
+    int i, len;
+    double *vec, *product;
+    COO coo;
+    FILE *fptr;
+    fptr = fopen("coo_output.txt", "w");
+
+    Usage(argc, argv);
+
+    read_COO(argv[1], &coo);
+
+    len = coo.n_cols;
+
+    vec = (double *)malloc(len * sizeof(double));
+    product = (double *)malloc(len * sizeof(double));
+
+    initialize_vector(vec, len);
+#ifdef DEBUG
+    print_COO(&coo);
+    print_vec(vec, coo.n_cols);
+    print_vec(product, coo.n_cols);
+#endif
+    int runs[7] = {1, 2, 4, 8, 16, 32, 64};
+    for (i = 0; i < sizeof(runs) / sizeof(runs[0]); i++)
     {
-        exit(1);
+        initialize_product(product, len);
+        calc(&coo, vec, product, runs[i], fptr);
     }
-    int code = mm_read_banner(f, &matcode);
+    fclose(fptr);
 
-    if (code != 0)
-    {
-        printf("Could not process Matrix Market banner. %d \n", code);
-        exit(1);
-    }
-
-    if ((ret_code = mm_read_mtx_crd_size(f, &coo->n_cols, &coo->n_rows, &coo->n_nz)) != 0)
-        exit(1);
-    mm_write_mtx_crd_size(stdout, coo->n_cols, coo->n_rows, coo->n_nz);
-    if (mm_is_complex(matcode) && mm_is_matrix(matcode) &&
-        mm_is_sparse(matcode))
-    {
-        printf("Sorry, this application does not support ");
-        printf("Market Market type: [%s]\n", mm_typecode_to_str(matcode));
-        exit(1);
-    }
-
-    coo->row_indices = calloc(coo->n_nz, sizeof(int));
-    coo->col_indices = calloc(coo->n_nz, sizeof(int));
-    coo->values = calloc(coo->n_nz, sizeof(double));
-
-    for (i = 0; i < coo->n_nz; i++)
-    {
-        fscanf(f, "%d %d %lg\n", &coo->col_indices[i], &coo->row_indices[i], &coo->values[i]);
-        coo->col_indices[i] -= 1;
-        coo->row_indices[i] -= 1;
-    }
-
-    if (f != stdin)
-        fclose(f);
-
-    return EXIT_SUCCESS;
+    return 0;
 }

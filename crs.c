@@ -1,70 +1,166 @@
-typedef struct CRS
-{
-    int n_rows;
-    int n_cols;
-    int n_nz;
-    int *row_ptrs;
-    int *col_indices;
-    double *values;
-} CRS;
+/*
+ *   gcc -g -Wall -fopenmp crs.c -o crs mmio.c
+ *   ./crs <file_name>.mtx
+ */
 
-void print_crs(CRS *crs)
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+#include "mmio.h"
+#include "helpers.c"
+
+void calculate_static(
+    CRS *crs, double *vec, double *product, int thread_count, FILE *fptr)
 {
-    int i, j;
+    double start, finish;
+    int i, j, nz_id;
+    start = omp_get_wtime();
+
+#pragma omp parallel for num_threads(thread_count) schedule(static, 1) private(nz_id, i, j) shared(crs, vec, product)
     for (i = 0; i < crs->n_rows; i++)
     {
-        printf("!%d, %d\n", crs->row_ptrs[i], crs->row_ptrs[i + 1]);
-        for (j = crs->row_ptrs[i]; j < crs->row_ptrs[i + 1]; j++)
-            printf("%d %d %lg\n", crs->col_indices[j] + 1, i + 1, crs->values[j]);
+#pragma omp parallel for num_threads(thread_count) schedule(static, 1)
+        for (nz_id = crs->row_ptrs[i]; nz_id < crs->row_ptrs[i + 1]; nz_id++)
+        {
+            j = crs->col_indices[nz_id];
+            product[i] += crs->values[nz_id] * vec[j];
+#ifdef DEBUG
+            int thread_num = omp_get_thread_num();
+            int actual_thread_count = omp_get_num_threads();
+            printf("from %d/%d: %d, %d %.3fx%.3f => += %.3f\n", thread_num, actual_thread_count, i, j, crs->values[nz_id], vec[j], crs->values[nz_id] * vec[j]);
+#endif
+        }
     }
+#ifdef DEBUG
+    print_vec(product, crs->n_cols);
+#endif
+    finish = omp_get_wtime();
+
+    printf("thread_count=%d Elapsed time = %.3f seconds\n", thread_count, finish - start);
+    fprintf(fptr, "%.3f\t", finish - start);
 }
 
-int read_crs(
-    const char *f_name,
-    CRS *crs)
+void calculate_dynamic(
+    CRS *crs, double *vec, double *product, int thread_count, FILE *fptr)
 {
-    MM_typecode matcode;
-    FILE *f;
-    int ret_code;
-    int nz, i, j = 0;
+    double start, finish;
+    int i, j, nz_id;
+    start = omp_get_wtime();
 
-    if ((f = fopen(f_name, "r")) == NULL)
+#pragma omp parallel for num_threads(thread_count) schedule(dynamic, 1) private(nz_id, i, j) shared(crs, vec, product)
+    for (i = 0; i < crs->n_rows; i++)
     {
-        exit(1);
+#pragma omp parallel for num_threads(thread_count) schedule(dynamic, 1)
+        for (nz_id = crs->row_ptrs[i]; nz_id < crs->row_ptrs[i + 1]; nz_id++)
+        {
+            j = crs->col_indices[nz_id];
+            product[i] += crs->values[nz_id] * vec[j];
+#ifdef DEBUG
+            int thread_num = omp_get_thread_num();
+            int actual_thread_count = omp_get_num_threads();
+            printf("from %d/%d: %d, %d %.3fx%.3f => += %.3f\n", thread_num, actual_thread_count, i, j, crs->values[nz_id], vec[j], crs->values[nz_id] * vec[j]);
+#endif
+        }
     }
-    int code = mm_read_banner(f, &matcode);
+#ifdef DEBUG
+    print_vec(product, crs->n_cols);
+#endif
+    finish = omp_get_wtime();
 
-    if (code != 0)
+    printf("thread_count=%d Elapsed time = %.3f seconds\n", thread_count, finish - start);
+    fprintf(fptr, "%.3f\t", finish - start);
+}
+
+void calculate_guided(
+    CRS *crs, double *vec, double *product, int thread_count, FILE *fptr)
+{
+    double start, finish;
+    int i, j, nz_id;
+    start = omp_get_wtime();
+
+#pragma omp parallel for num_threads(thread_count) schedule(guided, 1) private(nz_id, i, j) shared(crs, vec, product)
+    for (i = 0; i < crs->n_rows; i++)
     {
-        printf("Could not process Matrix Market banner. %d \n", code);
-        exit(1);
+#pragma omp parallel for num_threads(thread_count) schedule(guided, 1)
+        for (nz_id = crs->row_ptrs[i]; nz_id < crs->row_ptrs[i + 1]; nz_id++)
+        {
+            j = crs->col_indices[nz_id];
+            product[i] += crs->values[nz_id] * vec[j];
+#ifdef DEBUG
+            int thread_num = omp_get_thread_num();
+            int actual_thread_count = omp_get_num_threads();
+            printf("from %d/%d: %d, %d %.3fx%.3f => += %.3f\n", thread_num, actual_thread_count, i, j, crs->values[nz_id], vec[j], crs->values[nz_id] * vec[j]);
+#endif
+        }
     }
+#ifdef DEBUG
+    print_vec(product, crs->n_cols);
+#endif
+    finish = omp_get_wtime();
 
-    if ((ret_code = mm_read_mtx_crd_size(f, &crs->n_cols, &crs->n_rows, &crs->n_nz)) != 0)
-        exit(1);
-    mm_write_mtx_crd_size(stdout, crs->n_cols, crs->n_rows, crs->n_nz);
-    if (mm_is_complex(matcode) && mm_is_matrix(matcode) &&
-        mm_is_sparse(matcode))
+    printf("thread_count=%d Elapsed time = %.3f seconds\n", thread_count, finish - start);
+    fprintf(fptr, "%.3f\t", finish - start);
+}
+
+int main(int argc, char *argv[])
+{
+
+    int i, len;
+    double *vec, *product;
+    CRS crs;
+    FILE *fptr;
+    const char *f_name;
+
+    Usage(argc, argv);
+
+    char output_filename[32];
+    f_name = argv[1];
+    snprintf(output_filename, sizeof(char) * 32, "crs_%s_output.txt", f_name);
+    fptr = fopen(output_filename, "w");
+    read_crs(f_name, &crs);
+
+    len = crs.n_cols;
+
+    vec = (double *)malloc(len * sizeof(double));
+    product = (double *)malloc(len * sizeof(double));
+
+    initialize_vector(vec, len);
+
+#ifdef DEBUG
+    print_crs(&crs);
+    print_vec(vec, crs.n_cols);
+    print_vec(product, crs.n_cols);
+#endif
+
+    int runs[7] = {1, 2, 4, 8, 16, 32, 64};
+    // static
+    fprintf(fptr, "\nstatic, crs\t");
+    printf("\nstatic, crs\t");
+    for (i = 0; i < sizeof(runs) / sizeof(runs[0]); i++)
     {
-        printf("Sorry, this application does not support ");
-        printf("Market Market type: [%s]\n", mm_typecode_to_str(matcode));
-        exit(1);
+        initialize_product(product, len);
+        calculate_static(&crs, vec, product, runs[i], fptr);
     }
 
-    crs->row_ptrs = calloc(crs->n_rows + 1, sizeof(int));
-    crs->col_indices = calloc(crs->n_nz, sizeof(int));
-    crs->values = calloc(crs->n_nz, sizeof(double));
-
-    crs->row_ptrs[0] = 0;
-    for (nz = 0; nz < crs->n_nz; nz++)
+    // dynamic
+    fprintf(fptr, "\ndynamic, crs\t");
+    printf("\ndynamic, crs\t");
+    for (i = 0; i < sizeof(runs) / sizeof(runs[0]); i++)
     {
-        fscanf(f, "%d %d %lg\n", &crs->col_indices[nz], &j, &crs->values[nz]);
-        crs->col_indices[nz]--;
-        crs->row_ptrs[j] = nz + 1;
+        initialize_product(product, len);
+        calculate_dynamic(&crs, vec, product, runs[i], fptr);
     }
 
-    if (f != stdin)
-        fclose(f);
+    // guided
+    fprintf(fptr, "\nguided, crs\t");
+    printf("\nguided, crs\t");
+    for (i = 0; i < sizeof(runs) / sizeof(runs[0]); i++)
+    {
+        initialize_product(product, len);
+        calculate_guided(&crs, vec, product, runs[i], fptr);
+    }
 
-    return EXIT_SUCCESS;
+    fclose(fptr);
+
+    return 0;
 }
