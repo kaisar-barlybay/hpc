@@ -26,7 +26,7 @@ int read_crs(
     MM_typecode matcode;
     FILE *f;
     int ret_code;
-    int i, j;
+    int nz, i, j = 0;
 
     if ((f = fopen(f_name, "r")) == NULL)
     {
@@ -55,14 +55,13 @@ int read_crs(
     crs->col_indices = calloc(crs->n_nz, sizeof(int));
     crs->values = calloc(crs->n_nz, sizeof(double));
 
-    for (i = 0; i < crs->n_nz; i++)
+    crs->row_ptrs[0] = 0;
+    for (nz = 0; nz < crs->n_nz; nz++)
     {
-        crs->row_ptrs[j] = i;
-        fscanf(f, "%d %d %lg\n", &crs->col_indices[i], &j, &crs->values[i]);
-        crs->col_indices[i]--;
+        fscanf(f, "%d %d %lg\n", &crs->col_indices[nz], &j, &crs->values[nz]);
+        crs->col_indices[nz]--;
+        crs->row_ptrs[j] = nz + 1;
     }
-
-    crs->row_ptrs[j] = i;
 
     if (f != stdin)
         fclose(f);

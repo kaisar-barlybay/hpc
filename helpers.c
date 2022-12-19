@@ -18,7 +18,8 @@ void initialize_vector(double *vec, int len)
     srand((unsigned)time(&t));
     for (j = 0; j < len; j++)
     {
-        vec[j] = (rand() % 1000 - 500.0) / 100.0;
+        vec[j] = (double)j;
+        // vec[j] = (rand() % 1000 - 500.0) / 100.0;
     }
 }
 

@@ -11,7 +11,7 @@
 #include "helpers.c"
 
 void calc(
-    CRS *crs, double *vec, double *product, int thread_count)
+    CRS *crs, double *vec, double *product, int thread_count, FILE *fptr)
 {
     double start, finish;
     int i, j, nz_id;
@@ -20,14 +20,14 @@ void calc(
 #pragma omp parallel for num_threads(thread_count) schedule(static, 1) private(nz_id, i, j) shared(crs, vec, product)
     for (i = 0; i < crs->n_rows; i++)
     {
-        int thread_num = omp_get_thread_num();
-        int actual_thread_count = omp_get_num_threads();
 #pragma omp parallel for num_threads(thread_count)
         for (nz_id = crs->row_ptrs[i]; nz_id < crs->row_ptrs[i + 1]; nz_id++)
         {
             j = crs->col_indices[nz_id];
             product[i] += crs->values[nz_id] * vec[j];
 #ifdef DEBUG
+            int thread_num = omp_get_thread_num();
+            int actual_thread_count = omp_get_num_threads();
             printf("from %d/%d: %d, %d %.3fx%.3f => += %.3f\n", thread_num, actual_thread_count, i, j, crs->values[nz_id], vec[j], crs->values[nz_id] * vec[j]);
 #endif
         }
@@ -38,6 +38,7 @@ void calc(
     finish = omp_get_wtime();
 
     printf("thread_count=%d Elapsed time = %.3f seconds\n", thread_count, finish - start);
+    fprintf(fptr, "%.3f\t", finish - start);
 }
 
 int main(int argc, char *argv[])
@@ -46,6 +47,8 @@ int main(int argc, char *argv[])
     int i, len;
     double *vec, *product;
     CRS crs;
+    FILE *fptr;
+    fptr = fopen("output.txt", "w");
 
     Usage(argc, argv);
 
@@ -65,11 +68,14 @@ int main(int argc, char *argv[])
 #endif
 
     int runs[7] = {1, 2, 4, 8, 16, 32, 64};
+    fprintf(fptr, "static, crs\t");
     for (i = 0; i < sizeof(runs) / sizeof(runs[0]); i++)
     {
         initialize_product(product, len);
-        calc(&crs, vec, product, runs[i]);
+        calc(&crs, vec, product, runs[i], fptr);
     }
+
+    fclose(fptr);
 
     return 0;
 }
