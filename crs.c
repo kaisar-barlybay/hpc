@@ -1,4 +1,4 @@
-typedef struct Sparse_CSR
+typedef struct CRS
 {
     int n_rows;
     int n_cols;
@@ -6,42 +6,22 @@ typedef struct Sparse_CSR
     int *row_ptrs;
     int *col_indices;
     double *values;
-} Sparse_CSR;
+} CRS;
 
-void initialize_vectors(double *vec, double *product, int len)
-{
-    int j;
-    for (j = 0; j < len; j++)
-    {
-        vec[j] = (double)j;
-        // vec[j] = rand() % 50;
-        product[j] = 0.0;
-    }
-}
-
-void print_sparse_csr(Sparse_CSR *ssr)
+void print_crs(CRS *crs)
 {
     int i, j;
-    for (i = 0; i < ssr->n_rows; i++)
+    for (i = 0; i < crs->n_rows; i++)
     {
-        printf("!%d, %d\n", ssr->row_ptrs[i], ssr->row_ptrs[i + 1]);
-        for (j = ssr->row_ptrs[i]; j < ssr->row_ptrs[i + 1]; j++)
-            printf("%d %d %lg\n", ssr->col_indices[j] + 1, i + 1, ssr->values[j]);
+        printf("!%d, %d\n", crs->row_ptrs[i], crs->row_ptrs[i + 1]);
+        for (j = crs->row_ptrs[i]; j < crs->row_ptrs[i + 1]; j++)
+            printf("%d %d %lg\n", crs->col_indices[j] + 1, i + 1, crs->values[j]);
     }
 }
 
-void Usage(int argc, char *argv[])
-{
-    if (argc < 1)
-    {
-        fprintf(stderr, "Usage: %s [martix-market-filename]\n", argv[0]);
-        exit(1);
-    }
-}
-
-int create_sparse_csr(
+int read_crs(
     const char *f_name,
-    Sparse_CSR *ssr)
+    CRS *crs)
 {
     MM_typecode matcode;
     FILE *f;
@@ -60,9 +40,9 @@ int create_sparse_csr(
         exit(1);
     }
 
-    if ((ret_code = mm_read_mtx_crd_size(f, &ssr->n_cols, &ssr->n_rows, &ssr->n_nz)) != 0)
+    if ((ret_code = mm_read_mtx_crd_size(f, &crs->n_cols, &crs->n_rows, &crs->n_nz)) != 0)
         exit(1);
-    mm_write_mtx_crd_size(stdout, ssr->n_cols, ssr->n_rows, ssr->n_nz);
+    mm_write_mtx_crd_size(stdout, crs->n_cols, crs->n_rows, crs->n_nz);
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) &&
         mm_is_sparse(matcode))
     {
@@ -71,18 +51,18 @@ int create_sparse_csr(
         exit(1);
     }
 
-    ssr->row_ptrs = calloc(ssr->n_rows + 1, sizeof(int));
-    ssr->col_indices = calloc(ssr->n_nz, sizeof(int));
-    ssr->values = calloc(ssr->n_nz, sizeof(double));
+    crs->row_ptrs = calloc(crs->n_rows + 1, sizeof(int));
+    crs->col_indices = calloc(crs->n_nz, sizeof(int));
+    crs->values = calloc(crs->n_nz, sizeof(double));
 
-    for (i = 0; i < ssr->n_nz; i++)
+    for (i = 0; i < crs->n_nz; i++)
     {
-        ssr->row_ptrs[j] = i;
-        fscanf(f, "%d %d %lg\n", &ssr->col_indices[i], &j, &ssr->values[i]);
-        ssr->col_indices[i]--;
+        crs->row_ptrs[j] = i;
+        fscanf(f, "%d %d %lg\n", &crs->col_indices[i], &j, &crs->values[i]);
+        crs->col_indices[i]--;
     }
 
-    ssr->row_ptrs[j] = i;
+    crs->row_ptrs[j] = i;
 
     if (f != stdin)
         fclose(f);

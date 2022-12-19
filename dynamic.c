@@ -8,22 +8,23 @@
 #include <omp.h>
 #include "mmio.h"
 #include "crs.c"
+#include "helpers.c"
 
 void calc(
-    Sparse_CSR *ssr, double *vec, double *product, int thread_count)
+    CRS *crs, double *vec, double *product, int thread_count)
 {
     double start, finish;
     int i, j, nz_id;
     start = omp_get_wtime();
-#pragma omp parallel num_threads(thread_count) private(nz_id, i, j) shared(ssr, vec, product)
+#pragma omp parallel num_threads(thread_count) private(nz_id, i, j) shared(crs, vec, product)
     {
 #pragma omp parallel for schedule(dynamic, 1)
-        for (i = 0; i < ssr->n_rows; i++)
+        for (i = 0; i < crs->n_rows; i++)
         {
-            for (nz_id = ssr->row_ptrs[i]; nz_id < ssr->row_ptrs[i + 1]; nz_id++)
+            for (nz_id = crs->row_ptrs[i]; nz_id < crs->row_ptrs[i + 1]; nz_id++)
             {
-                j = ssr->col_indices[nz_id];
-                product[i] += ssr->values[nz_id] * vec[j];
+                j = crs->col_indices[nz_id];
+                product[i] += crs->values[nz_id] * vec[j];
             }
         }
     }
@@ -37,22 +38,23 @@ int main(int argc, char *argv[])
 
     int i, len;
     double *vec, *product;
-    Sparse_CSR ssr;
+    CRS crs;
 
     Usage(argc, argv);
 
-    create_sparse_csr(argv[1], &ssr);
+    read_crs(argv[1], &crs);
 
-    len = ssr.n_cols;
+    len = crs.n_cols;
 
     vec = (double *)malloc(len * sizeof(double));
     product = (double *)malloc(len * sizeof(double));
 
-    initialize_vectors(vec, product, len);
+    initialize_vector(vec, len);
+    initialize_product(product, len);
     int runs[7] = {1, 2, 4, 8, 16, 32, 64};
     for (i = 0; i < sizeof(runs) / sizeof(runs[0]); i++)
     {
-        calc(&ssr, vec, product, runs[i]);
+        calc(&crs, vec, product, runs[i]);
     }
 
     return 0;
