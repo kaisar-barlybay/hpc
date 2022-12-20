@@ -6,11 +6,6 @@
         "editor.suggest.insertMode": "replace",
     },
     "javascript.validate.enable": true,
-    "[python]": {
-        "editor.insertSpaces": true,
-        "editor.tabSize": 2,
-        "editor.formatOnSave": true
-    },
     "[rmd]": {
         "editor.tabSize": 3
     },
@@ -109,16 +104,6 @@
         "**/.ammonite": true
     },
     "explorer.confirmDelete": false,
-    "[javascript]": {
-        "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-        "editor.insertSpaces": true,
-        "editor.tabSize": 2
-    },
-    "[javascriptreact]": {
-        "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-        "editor.insertSpaces": true,
-        "editor.tabSize": 2
-    },
     "[markdown]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode"
     },

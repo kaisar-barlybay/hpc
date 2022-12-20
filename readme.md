@@ -1,17 +1,7 @@
-# 8.1
+For each experiment helpers.c, mmio.c, mmio.h and <file_name>.mtx file should be present in the directory. If you want to debug the program compile with `--DDEBUG` for debug outputs, but please only with small matrix inputs.
 
-## static
-- compilation: `gcc -g -Wall -fopenmp static.c -o static mmio.c`
-- run: `./static <file_name>.mtx`
+# CRS experiment
+To compile the program for the experiment execute in terminal: `gcc -g -Wall -fopenmp crs.c -o crs mmio.c`. To run the program execute `./crs <file_name>.mtx` in the terminal window, where <file_name>.mtx is the name of the matrix you want to multiply. 
 
-## dynamic
-- compilation: `gcc -g -Wall -fopenmp dynamic.c -o dynamic mmio.c`
-- run: `./dynamic <file_name>.mtx`
-
-## static_coo
-- compilation: `gcc -g -Wall -fopenmp static_coo.c -o static_coo mmio.c`
-- run: `./static_coo <file_name>.mtx`
-- compile with `--DDEBUG` for debug outputs, but please only with small matrix inputs
-
-
-264zuj8m
+# COO arrowhead matrix experiment
+To compile the program for the experiment execute in terminal: `gcc -g -Wall -fopenmp coo.c -o coo mmio.c`. To run the program execute `./coo <file_name>.mtx` in the terminal window, where <file_name>.mtx is the name of the matrix you want to multiply. 
